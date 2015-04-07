@@ -1,0 +1,112 @@
+import cv2
+import numpy as np
+"""
+Script using OpenCV's Hough transforms for reading images of 
+simple dials.
+"""
+
+
+
+
+center_x=[]    #two lists to store x axis of circle
+center_y=[]
+
+
+# load grayscale image
+im = cv2.imread("gauge.jpg")
+gray_im = cv2.cvtColor(im, cv2.COLOR_RGB2GRAY)
+
+# create version to draw on and blurred version
+draw_im = cv2.cvtColor(gray_im, cv2.COLOR_GRAY2BGR)
+blur = cv2.GaussianBlur(gray_im, (0,0), 5)
+
+m,n = gray_im.shape
+
+# Hough transform for circles
+circles = cv2.HoughCircles(gray_im, cv2.cv.CV_HOUGH_GRADIENT, 2, 10, np.array([]), 20, 60, m/10)[0]
+
+for x in circles[:5]:
+	center_x.append(x[0])
+for y in circles[:5]:
+	center_y.append(y[1])
+
+cen_x=int(sum(center_x)/len(center_x))
+cen_y=int(sum(center_y)/len(center_y))
+
+#print cen_x
+#print cen_y
+# Hough transform for lines (regular and probabilistic)
+edges = cv2.Canny(blur, 20, 60)
+lines = cv2.HoughLines(edges, 2, np.pi/90, 40)[0]
+plines = cv2.HoughLinesP(edges, 1, np.pi/180, 20, np.array([]), 10)[0]
+
+#print lines[1]
+
+# draw 
+for c in circles[:5]:
+ # green for circles (only draw the 3 strongest)
+	cv2.circle(draw_im, (c[0],c[1]), c[2], (0,255,0), 2) 
+
+
+for (rho, theta) in lines[1:2]:
+ # blue for infinite lines (only draw the 5 strongest)
+ x0 = np.cos(theta)*rho 
+ y0 = np.sin(theta)*rho
+ pt1 = ( int(x0 + (m+n)*(-np.sin(theta))), int(y0 + (m+n)*np.cos(theta)) )
+ pt2 = ( int(x0 - (m+n)*(-np.sin(theta))), int(y0 - (m+n)*np.cos(theta)) )
+ #cv2.line(draw_im, pt1, pt2, (255,0,0), 2) 
+ p1_start=pt1
+ p1_end=pt2
+
+for (rho, theta) in lines[:1]:
+ # blue for infinite lines (only draw the 5 strongest)
+ x0 = np.cos(theta)*rho 
+ y0 = np.sin(theta)*rho
+ pt1 = ( int(x0 + (m+n)*(-np.sin(theta))), int(y0 + (m+n)*np.cos(theta)) )
+ pt2 = ( int(x0 - (m+n)*(-np.sin(theta))), int(y0 - (m+n)*np.cos(theta)) )
+ #cv2.line(draw_im, pt1, pt2, (255,0,0), 2) 
+ p2_start=pt1
+ p2_end=pt2 
+
+line1=[p1_start,p1_end]
+line2=[p2_start,p2_end]
+def line_intersection(line1, line2):
+    xdiff = (line1[0][0] - line1[1][0], line2[0][0] - line2[1][0])
+    ydiff = (line1[0][1] - line1[1][1], line2[0][1] - line2[1][1]) #Typo was here
+
+    def det(a, b):
+        return a[0] * b[1] - a[1] * b[0]
+
+    div = det(xdiff, ydiff)
+    if div == 0:
+       raise Exception('lines do not intersect')
+
+    d = (det(*line1), det(*line2))
+    x = det(d, xdiff) / div
+    y = det(d, ydiff) / div
+    return x, y
+
+axis= line_intersection(line1,line2)    #the intersection of two lines
+
+vector1=[(cen_x,cen_y),axis]     #first vector, center-needle
+
+def line_distance(line):
+    
+    x_dif=line[0][0]-line[1][0]
+    y_dif=line[0][1]-line[1][1]
+    length=sqrt(x_dif**2 + y_dif**2)
+    return length
+
+#cv2.line(draw_im, (cen_x,cen_y), (axis[0],axis[1]), (255,0,0), 2)  #draw the line
+cv2.line(draw_im, (vector1[0][0],vector1[0][1]), (vector1[1][0],vector1[1][1]), (255,0,0), 2)  #draw the line
+  
+cv2.imshow("circles",draw_im)
+cv2.waitKey()
+
+# save the resulting image
+cv2.imwrite("res.jpg",draw_im)
+
+
+#export PYTHONPATH=/usr/local/lib/python2.7/site-packages:$PYTHONPATH
+
+''
